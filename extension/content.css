@@ -1,0 +1,51 @@
+/* Boss直聘AI投递助手 - 页面样式 */
+
+.match-indicator {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 高亮匹配度高的职位卡片 */
+.job-card-wrapper:has(.match-indicator) {
+  transition: all 0.3s ease;
+}
+
+.job-card-wrapper:has(.match-indicator) {
+  border: 2px solid transparent;
+}
+
+.job-card-wrapper:hover:has(.match-indicator) {
+  border-color: #667eea;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* 投递按钮样式增强 */
+.btn-apply, .btn-startchat {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-apply::after, .btn-startchat::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn-apply:hover::after, .btn-startchat:hover::after {
+  left: 100%;
+}

@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Boss直聘AI投递助手",
+  "version": "1.0.0",
+  "description": "自动分析职位匹配度并一键投递",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": ["https://www.zhipin.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.svg",
+      "48": "icons/icon48.svg",
+      "128": "icons/icon128.svg"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.zhipin.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icons/icon16.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  }
+}
