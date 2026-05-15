@@ -1,74 +1,90 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // 加载保存的设置
   loadSettings();
   
   // 技能标签点击事件
   document.querySelectorAll('.skill-tag').forEach(tag => {
     tag.addEventListener('click', () => {
       tag.classList.toggle('active');
+      // 保存设置并刷新匹配度显示
+      saveSettingsAndRefresh();
     });
   });
   
-  // 切换按钮事件
-  document.getElementById('autoMatchBtn').addEventListener('click', () => {
-    document.getElementById('autoMatchBtn').classList.add('active');
-    document.getElementById('manualMatchBtn').classList.remove('active');
-  });
-  
-  document.getElementById('manualMatchBtn').addEventListener('click', () => {
-    document.getElementById('manualMatchBtn').classList.add('active');
-    document.getElementById('autoMatchBtn').classList.remove('active');
-  });
+  // 输入框变化时也刷新
+  document.getElementById('targetPosition').addEventListener('change', saveSettingsAndRefresh);
+  document.getElementById('matchThreshold').addEventListener('change', saveSettingsAndRefresh);
+  document.getElementById('customSkills').addEventListener('change', saveSettingsAndRefresh);
   
   // 开始投递按钮
   document.getElementById('startBtn').addEventListener('click', async () => {
     const settings = getSettings();
-    await chrome.storage.local.set({ 'boss_ai_settings': settings });
     
+    if (settings.skills.length === 0 && !settings.targetPosition) {
+      showStatus('error', '请至少选择一项技能或设置目标职位');
+      return;
+    }
+    
+    await chrome.storage.local.set({ 'boss_ai_settings': settings });
     showStatus('info', '正在分析页面...');
     
-    // 向content script发送消息开始投递
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.tabs.sendMessage(tabs[0].id, { action: 'startApply', settings }, (response) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      const currentTab = tabs[0];
+      if (!currentTab.url.includes('zhipin.com')) {
+        showStatus('error', '请在Boss直聘页面使用此功能');
+        return;
+      }
+      
+      try {
+        const response = await sendMessageToContent({ action: 'startApply', settings });
         if (response && response.success) {
-          showStatus('success', `已找到 ${response.matchCount} 个匹配岗位，正在投递...`);
-          updateStats(response.appliedCount, response.successCount);
+          showStatus('success', '投递任务已启动');
         } else {
-          showStatus('error', response?.message || '投递失败，请重试');
+          showStatus('error', response?.message || '投递失败');
+        }
+      } catch (error) {
+        showStatus('error', '发送消息失败，请刷新页面重试');
+      }
+    });
+  });
+  
+  loadStats();
+});
+
+async function saveSettingsAndRefresh() {
+  const settings = getSettings();
+  await chrome.storage.local.set({ 'boss_ai_settings': settings });
+  
+  // 刷新页面匹配度显示
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.tabs.sendMessage(tabs[0].id, { action: 'refreshMatch' });
+  });
+}
+
+function sendMessageToContent(message) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      chrome.tabs.sendMessage(tabs[0].id, message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+        } else {
+          resolve(response);
         }
       });
     });
   });
-  
-  // 重置统计按钮
-  document.getElementById('resetBtn').addEventListener('click', () => {
-    chrome.storage.local.set({ 
-      'boss_ai_stats': { appliedCount: 0, successCount: 0, matchCount: 0 } 
-    }, () => {
-      updateStats(0, 0);
-      showStatus('info', '统计已重置');
-    });
-  });
-  
-  // 加载统计数据
-  loadStats();
-});
+}
 
 function getSettings() {
   const selectedSkills = Array.from(document.querySelectorAll('.skill-tag.active'))
     .map(tag => tag.dataset.skill);
   const customSkills = document.getElementById('customSkills').value;
   if (customSkills) {
-    selectedSkills.push(...customSkills.split(',').map(s => s.trim()).filter(s => s));
+    selectedSkills.push(...customSkills.split(/[\s,，、]+/).map(s => s.trim()).filter(s => s));
   }
   
   return {
     skills: selectedSkills,
     targetPosition: document.getElementById('targetPosition').value,
-    experience: document.getElementById('experience').value,
-    salary: document.getElementById('salary').value,
-    introTemplate: document.getElementById('introTemplate').value,
-    matchMode: document.getElementById('autoMatchBtn').classList.contains('active') ? 'auto' : 'manual',
     matchThreshold: parseInt(document.getElementById('matchThreshold').value) || 60
   };
 }
@@ -88,19 +104,6 @@ function loadSettings() {
     if (settings.targetPosition) {
       document.getElementById('targetPosition').value = settings.targetPosition;
     }
-    if (settings.experience) {
-      document.getElementById('experience').value = settings.experience;
-    }
-    if (settings.salary) {
-      document.getElementById('salary').value = settings.salary;
-    }
-    if (settings.introTemplate) {
-      document.getElementById('introTemplate').value = settings.introTemplate;
-    }
-    if (settings.matchMode === 'manual') {
-      document.getElementById('manualMatchBtn').classList.add('active');
-      document.getElementById('autoMatchBtn').classList.remove('active');
-    }
     if (settings.matchThreshold) {
       document.getElementById('matchThreshold').value = settings.matchThreshold;
     }
@@ -110,14 +113,10 @@ function loadSettings() {
 function loadStats() {
   chrome.storage.local.get('boss_ai_stats', (result) => {
     const stats = result.boss_ai_stats || { appliedCount: 0, successCount: 0, matchCount: 0 };
-    updateStats(stats.appliedCount, stats.successCount);
+    document.getElementById('appliedCount').textContent = stats.appliedCount;
+    document.getElementById('successCount').textContent = stats.successCount;
     document.getElementById('matchCount').textContent = stats.matchCount;
   });
-}
-
-function updateStats(applied, success) {
-  document.getElementById('appliedCount').textContent = applied;
-  document.getElementById('successCount').textContent = success;
 }
 
 function showStatus(type, message) {
